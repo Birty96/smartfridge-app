@@ -16,8 +16,22 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY')
     if not SECRET_KEY:
         raise ValueError("SECRET_KEY environment variable is required and must be set")
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'sqlite:///' + os.path.join(basedir, 'app.db')
+    
+    # Database Configuration - Support both Azure SQL and SQLite
+    DATABASE_URL = os.environ.get('DATABASE_URL')
+    if DATABASE_URL:
+        # Azure SQL Database or other external database
+        if DATABASE_URL.startswith('mssql://'):
+            # Convert Azure SQL connection string format
+            SQLALCHEMY_DATABASE_URI = DATABASE_URL.replace('mssql://', 'mssql+pyodbc://')
+            if '?' not in SQLALCHEMY_DATABASE_URI:
+                SQLALCHEMY_DATABASE_URI += '?driver=ODBC+Driver+17+for+SQL+Server'
+        else:
+            SQLALCHEMY_DATABASE_URI = DATABASE_URL
+    else:
+        # Fallback to SQLite for local development
+        SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(basedir, 'app.db')
+    
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # Mail server configuration (using Gmail as an example, requires App Password)
