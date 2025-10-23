@@ -1,0 +1,450 @@
+{% extends "base.html" %}
+{% from "_formhelpers.html" import render_field %}
+
+{% block content %}
+{# Page Header Row #}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">My Fridge Contents</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        {# Suggest Recipes Form - Smaller, next to Add button #}
+        <form action="{{ url_for('fridge.suggest_recipes') }}" method="GET" class="d-inline-block me-2">
+             <div class="input-group input-group-sm">
+                <span class="input-group-text">Servings:</span>
+                 <input type="number" name="servings" value="{{ request.args.get('servings', 2) }}" min="1" max="20" class="form-control servings-input">
+                 <button type="submit" class="btn btn-sm btn-success">Suggest Recipes</button>
+            </div>
+        </form>
+        {# Loading Indicator Placeholder - Use d-none #}
+        <span id="suggestion-loading" class="ms-2 text-muted d-none">
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...
+        </span>
+        {# Add Ingredient Button #}
+        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addIngredientModal">
+            Add Ingredient
+        </button>
+    </div>
+</div>
+
+{# Add Ingredient Modal #}
+<div class="modal fade" id="addIngredientModal" tabindex="-1" aria-labelledby="addIngredientModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('fridge.index') }}" id="addIngredientForm" novalidate>
+           {{ form.hidden_tag() }}
+          <div class="modal-header">
+            <h5 class="modal-title" id="addIngredientModalLabel">Add New Ingredient</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+              {# --- Scanner UI Elements --- #}
+              <div class="mb-3 text-center">
+                  <button type="button" class="btn btn-secondary" id="startScannerBtn"><i class="bi bi-upc-scan"></i> Scan Barcode with Camera</button>
+              </div>
+              <div id="scanner-container" class="mb-3 scanner-container d-none">
+                  <div id="reader" class="scanner-reader"></div>
+                  <button type="button" class="btn btn-sm btn-warning mt-2 d-none" id="stopScannerBtn">Stop Scanner</button>
+              </div>
+              {# --- End Scanner UI --- #}
+              
+              <div class="mb-3">
+                   {# Optional: Barcode input field #}
+                    <label for="barcodeInput" class="form-label">Barcode (Optional)</label>
+                    <div class="input-group">
+                        <input type="text" id="barcodeInput" class="form-control" placeholder="Scan or enter barcode...">
+                        <button class="btn btn-outline-secondary" type="button" id="lookupBarcodeBtn">Lookup</button>
+                    </div>
+                    <div id="barcodeLookupResult" class="mt-2"></div>
+              </div>
+              <hr>
+                {{ render_field(form.name, class='form-control') }}
+                <div class="row">
+                    <div class="col-md-6">
+                        {{ render_field(form.quantity, class='form-control', type='number', step='any') }}
+                    </div>
+                    <div class="col-md-6">
+                         {{ render_field(form.unit, class='form-control') }}
+                    </div>
+                </div>
+                 <div class="row">
+                    <div class="col-md-6">
+                        {{ render_field(form.weight, class='form-control', type='number', step='any') }}
+                    </div>
+                    <div class="col-md-6">
+                         {{ render_field(form.weight_unit, class='form-control') }}
+                    </div>
+                </div>
+                {{ render_field(form.expiry_date, class='form-control', type='date') }}
+                <small class="form-text text-muted">Provide either Quantity or Weight.</small>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            {{ form.submit(class='btn btn-primary') }}
+          </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# Ingredient List - Using Cards #}
+{% if ingredients %}
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+    {% for ingredient in ingredients %}
+    <div class="col">
+        {# Add card classes, use theme-aware bg-body-tertiary or similar #}
+        <div class="card h-100 shadow-sm border-{{ 'danger' if ingredient.expiry_date and ingredient.expiry_date < today else ('warning' if ingredient.expiry_date and ingredient.expiry_date < today + timedelta(days=3) else 'secondary') }}">
+            <div class="card-body">
+                <h5 class="card-title">{{ ingredient.name }}</h5>
+                <p class="card-text mb-1">
+                    <strong>Quantity:</strong> {{ ingredient.quantity if ingredient.quantity is not none else '-' }} {{ ingredient.unit or '' }}
+                </p>
+                <p class="card-text mb-2">
+                     <strong>Weight:</strong> {{ ingredient.weight if ingredient.weight is not none else '-' }} {{ ingredient.weight_unit or '' }}
+                 </p>
+                <p class="card-text">
+                    <strong>Expires:</strong> 
+                    {% if ingredient.expiry_date %}
+                        {{ ingredient.expiry_date.strftime('%Y-%m-%d') }}
+                        {% set days_left = (ingredient.expiry_date - today).days %}
+                        <small class="d-block text-{{ 'danger' if days_left < 0 else ('warning' if days_left <= 7 else 'muted') }}">
+                            {% if days_left < 0 %}
+                                (Expired {{ -days_left }} days ago)
+                            {% elif days_left == 0 %}
+                                (Expires today)
+                            {% elif days_left <= 7 %}
+                                (Expires in {{ days_left }} day{{ 's' if days_left != 1 }})
+                            {% else %}
+                                (in {{ days_left }} days)
+                            {% endif %}
+                        </small>
+                    {% else %}
+                        -
+                    {% endif %}
+                </p>
+            </div>
+            <div class="card-footer bg-transparent border-top-0">
+                {# Update Quantity/Weight Modal Trigger #}
+                 <button type="button" class="btn btn-sm btn-outline-secondary me-1" data-bs-toggle="modal" data-bs-target="#updateQtyModal-{{ ingredient.id }}" title="Update Quantity/Weight">
+                    <i class="bi bi-pencil-square"></i> Update
+                </button>
+                
+                {# Delete Form - Use d-inline-block class #}
+                <form action="{{ url_for('fridge.delete_ingredient', ingredient_id=ingredient.id) }}" method="POST" class="d-inline-block" onsubmit="return confirm('Are you sure you want to delete {{ ingredient.name }}?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i> Delete</button>
+                </form>
+            </div>
+
+            {# Define the Update Quantity Modal INSIDE the card div #}
+            <div class="modal fade" id="updateQtyModal-{{ ingredient.id }}" tabindex="-1" aria-labelledby="updateQtyModalLabel-{{ ingredient.id }}" aria-hidden="true">
+              <div class="modal-dialog modal-sm">
+                <div class="modal-content">
+                  <form method="POST" action="{{ url_for('fridge.update_quantity', ingredient_id=ingredient.id) }}" novalidate>
+                       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                      <div class="modal-header">
+                        <h5 class="modal-title" id="updateQtyModalLabel-{{ ingredient.id }}">Update {{ ingredient.name }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                      </div>
+                      <div class="modal-body">
+                           {# Convert ingredient.id to string for the prefix #}
+                           {% set update_form = UpdateQtyForm(prefix=ingredient.id|string) %}
+                            {{ render_field(update_form.quantity, class='form-control', type='number', step='any', placeholder='Current: ' + (ingredient.quantity|string if ingredient.quantity is not none else 'N/A')) }}
+                            {{ render_field(update_form.weight, class='form-control', type='number', step='any', placeholder='Current: ' + (ingredient.weight|string if ingredient.weight is not none else 'N/A')) }}
+                            <small class="form-text text-muted">Enter new value(s) to update.</small>
+                      </div>
+                      <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        {{ update_form.submit(class='btn btn-primary') }}
+                      </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+            {# End Update Quantity Modal #}
+
+        </div> {# End card #}
+    </div> {# End col #}
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info" role="alert">
+    Your fridge is empty! Click "Add Ingredient" to get started.
+</div>
+{% endif %}
+
+{# Container for AJAX-loaded recipe suggestions #}
+<div id="recipe-suggestions-container" class="mt-5">
+    {# Suggestions will be loaded here by JavaScript #}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{# Add Nonce to script block #}
+<script nonce="{{ csp_nonce() }}">
+    // Simple Barcode Lookup
+    document.getElementById('lookupBarcodeBtn').addEventListener('click', function() {
+        const barcode = document.getElementById('barcodeInput').value.trim();
+        const resultDiv = document.getElementById('barcodeLookupResult');
+        const nameField = document.getElementById('name'); // Assumes form field has id="name"
+        
+        resultDiv.innerHTML = '<span class="text-muted">Looking up...</span>'; 
+        
+        if (!barcode) {
+            resultDiv.innerHTML = '<span class="text-danger">Please enter a barcode.</span>';
+            return;
+        }
+
+        fetch(`{{ url_for('fridge.lookup_barcode', barcode='BARCODE_PLACEHOLDER') }}`.replace('BARCODE_PLACEHOLDER', barcode))
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw new Error(err.error || `HTTP error ${response.status}`); });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Received data from barcode lookup:', data);
+                if (data.name) {
+                    resultDiv.innerHTML = `<span class="text-success">Found: ${data.name} ${data.quantity || ''}</span>`;
+                    nameField.value = data.name; // Pre-fill name field
+                    
+                    // --- Pre-fill quantity/weight based on parsed unit --- #
+                    const quantityField = document.getElementById('quantity');
+                    const unitField = document.getElementById('unit');
+                    const weightField = document.getElementById('weight');
+                    const weightUnitField = document.getElementById('weight_unit');
+                    
+                    // Clear previous values first
+                    quantityField.value = '';
+                    unitField.value = '';
+                    weightField.value = '';
+                    weightUnitField.value = '';
+                    
+                    if (data.parsed_quantity && data.parsed_unit) {
+                         const unit = data.parsed_unit.toLowerCase();
+                         // Decide field based on unit
+                         if (['g', 'kg', 'oz', 'lb'].includes(unit)) { 
+                             weightField.value = data.parsed_quantity;
+                             weightUnitField.value = unit;
+                         } else if (['ml', 'l', 'cl', 'floz', 'pcs'].includes(unit)) { 
+                             quantityField.value = data.parsed_quantity;
+                             unitField.value = unit;
+                         } else {
+                             // If unit is unrecognized, maybe put in quantity?
+                             quantityField.value = data.parsed_quantity;
+                             unitField.value = unit; 
+                         }
+                    } else if (data.parsed_quantity) {
+                         // If only quantity was parsed (defaulted to pcs), put in Quantity field
+                         quantityField.value = data.parsed_quantity;
+                         unitField.value = 'pcs';
+                    }
+                    // --- End pre-fill logic --- #
+                    
+                } else {
+                     resultDiv.innerHTML = '<span class="text-warning">Product details not found.</span>';
+                }
+            })
+            .catch(error => {
+                console.error('Barcode lookup error:', error);
+                resultDiv.innerHTML = `<span class="text-danger">Error: ${error.message}</span>`;
+            });
+    });
+
+    // --- Loading Indicator Logic --- 
+    const suggestForm = document.querySelector('form[action*="suggest_recipes"]');
+    const suggestButton = suggestForm.querySelector('button[type="submit"]');
+    const loadingIndicator = document.getElementById('suggestion-loading');
+    const suggestionsContainer = document.getElementById('recipe-suggestions-container');
+
+    if (suggestForm && suggestButton && loadingIndicator && suggestionsContainer) {
+        suggestForm.addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent default form submission
+            console.log('Suggest form submitted via AJAX');
+
+            // Clear previous suggestions and show loading indicator
+            suggestionsContainer.innerHTML = ''; 
+            loadingIndicator.classList.remove('d-none');
+            suggestButton.disabled = true;
+
+            // Get form data
+            const formData = new FormData(suggestForm);
+            const servings = formData.get('servings');
+            const url = suggestForm.action; // Get URL from form's action attribute
+            // Append servings as query parameter if needed, or send in body for POST
+            const fetchUrl = `${url}?servings=${servings}`; // Assuming GET request
+
+            // Perform AJAX request
+            fetch(fetchUrl, {
+                method: 'GET', // Assuming GET, change to POST if needed
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest' // Often helpful for backend to identify AJAX
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    // Handle HTTP errors (e.g., 404, 500)
+                     return response.text().then(text => { 
+                         throw new Error(`Server error: ${response.status} ${response.statusText}. ${text}`); 
+                     });
+                }
+                return response.json(); // Expect JSON response from backend
+            })
+            .then(data => {
+                console.log('Received recipe data:', data);
+                // Process and display recipes
+                if (data.recipes && data.recipes.length > 0) {
+                    suggestionsContainer.innerHTML = '<h3 class="mb-3">Recipe Suggestions</h3>';
+                    const row = document.createElement('div');
+                    row.className = 'row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4';
+                    
+                    data.recipes.forEach(recipe => {
+                        // Create recipe card HTML (similar to suggested_recipes.html)
+                        const cardHtml = `
+                            <div class="col">
+                                <div class="card h-100 shadow-sm">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">${escapeHtml(recipe.title)}</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <h6 class="card-subtitle mb-2 text-muted"><i class="bi bi-basket"></i> Ingredients</h6>
+                                        <ul class="list-unstyled">
+                                            ${recipe.ingredients.map(item => `<li><i class="bi bi-dot"></i> ${escapeHtml(item)}</li>`).join('')}
+                                        </ul>
+                                        <h6 class="card-subtitle mt-3 mb-2 text-muted"><i class="bi bi-list-ol"></i> Instructions</h6>
+                                        <ol>
+                                             ${recipe.instructions.map(step => `<li>${escapeHtml(step)}</li>`).join('')}
+                                        </ol>
+                                    </div>
+                                    <div class="card-footer bg-transparent border-top-0">
+                                        <form action="${data.save_url}" method="POST" class="save-recipe-form">
+                                            <input type="hidden" name="csrf_token" value="${data.csrf_token}"/>
+                                            <input type="hidden" name="title" value="${escapeHtml(recipe.title)}">
+                                            <input type="hidden" name="ingredients" value="${escapeHtml(recipe.ingredients.join('\n'))}">
+                                            <input type="hidden" name="instructions" value="${escapeHtml(recipe.instructions.join('\n'))}">
+                                             <input type="hidden" name="source" value="AI Generated">
+                                            <button type="submit" class="btn btn-sm btn-outline-success" title="Select Recipe"><i class="bi bi-check-lg"></i> Select</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        row.innerHTML += cardHtml;
+                    });
+                    suggestionsContainer.appendChild(row);
+                } else {
+                     suggestionsContainer.innerHTML = '<div class="alert alert-info">No recipe suggestions found or generated.</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching recipe suggestions:', error);
+                suggestionsContainer.innerHTML = `<div class="alert alert-danger">Error generating suggestions: ${error.message}</div>`;
+            })
+            .finally(() => {
+                // Hide loading indicator and re-enable button
+                loadingIndicator.classList.add('d-none');
+                suggestButton.disabled = false;
+                 console.log('AJAX request finished');
+            });
+        });
+
+        // Helper function to prevent XSS
+        function escapeHtml(unsafe) {
+            if (!unsafe) return '';
+            return unsafe
+                 .replace(/&/g, "&amp;")
+                 .replace(/</g, "&lt;")
+                 .replace(/>/g, "&gt;")
+                 .replace(/"/g, "&quot;")
+                 .replace(/'/g, "&#039;");
+         }
+
+    }
+    // --- End Loading Indicator Logic ---
+
+    // --- Barcode Scanner Logic --- //
+    const startScannerBtn = document.getElementById('startScannerBtn');
+    const stopScannerBtn = document.getElementById('stopScannerBtn');
+    const scannerContainer = document.getElementById('scanner-container');
+    const barcodeInput = document.getElementById('barcodeInput');
+    const lookupButton = document.getElementById('lookupBarcodeBtn');
+    const barcodeResultDiv = document.getElementById('barcodeLookupResult');
+    let html5QrCode = null; // Variable to hold the scanner instance
+
+    if (startScannerBtn && stopScannerBtn && scannerContainer && barcodeInput && lookupButton) {
+        startScannerBtn.addEventListener('click', () => {
+            scannerContainer.classList.remove('d-none');
+            stopScannerBtn.classList.remove('d-none');
+            startScannerBtn.classList.add('d-none'); // Hide start button
+            barcodeResultDiv.innerHTML = ''; // Clear previous lookup results
+
+            // Create scanner instance if it doesn't exist
+            if (!html5QrCode) {
+                 html5QrCode = new Html5Qrcode("reader");
+            }
+
+            // Configuration for the scanner
+            const config = { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 }; // Adjust qrbox/aspect ratio as needed
+
+            // Success callback
+            const onScanSuccess = (decodedText, decodedResult) => {
+                console.log(`Scan result: ${decodedText}`, decodedResult);
+                barcodeInput.value = decodedText; // Populate the input field
+                stopScanner(); // Stop the scanner
+                lookupButton.click(); // Automatically trigger lookup
+            };
+
+            // Error callback (optional, can be verbose)
+            const onScanFailure = (error) => {
+                 // console.warn(`Code scan error = ${error}`);
+                 // Handle scan failure, potentially show feedback
+            };
+
+            // Start scanning
+            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, onScanFailure)
+                .catch((err) => {
+                    console.error(`Unable to start scanning: ${err}`);
+                     // Try front camera if environment fails or isn't available
+                     console.log("Trying front camera...");
+                     html5QrCode.start({ facingMode: "user" }, config, onScanSuccess, onScanFailure)
+                         .catch((errUser) => {
+                             console.error(`Unable to start scanning with front camera: ${errUser}`);
+                             barcodeResultDiv.innerHTML = '<span class="text-danger">Error starting camera. Please grant permission and ensure no other app is using it.</span>';
+                             stopScanner(); // Clean up UI
+                         });
+                });
+        });
+
+        stopScannerBtn.addEventListener('click', stopScanner);
+
+        function stopScanner() {
+             if (html5QrCode && html5QrCode.isScanning) {
+                 html5QrCode.stop().then((ignore) => {
+                     console.log("Scanner stopped.");
+                 }).catch((err) => {
+                     console.error(`Error stopping scanner: ${err}`);
+                 });
+             }
+             scannerContainer.classList.add('d-none');
+             stopScannerBtn.classList.add('d-none');
+             startScannerBtn.classList.remove('d-none'); // Show start button again
+        }
+        
+        // Also stop scanner if modal is closed
+        const addIngredientModalEl = document.getElementById('addIngredientModal');
+        if (addIngredientModalEl) {
+            addIngredientModalEl.addEventListener('hidden.bs.modal', event => {
+                stopScanner();
+            });
+        }
+    } else {
+        console.warn("Scanner UI elements not found, scanner disabled.");
+    }
+    // --- End Barcode Scanner Logic --- //
+
+</script>
+{# --- TEMPORARY DEBUGGING WITH ERUDA --- #}
+<script src="//cdn.jsdelivr.net/npm/eruda"></script>
+<script>eruda.init();</script>
+{# --- END TEMPORARY DEBUGGING --- #}
+{% endblock %} 
