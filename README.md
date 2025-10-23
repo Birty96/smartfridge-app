@@ -66,7 +66,7 @@ python3 generate_secret_key.py
 
 # Set application settings (environment variables)
 az webapp config appsettings set --resource-group SmartFridge-RG --name your-smartfridge-app --settings \
-    SECRET_KEY="fe74eca42349621a21c6a693e5eb37293b129591844d5d5b576903d27e9a97ae" \
+    SECRET_KEY="" \
     FLASK_CONFIG="production" \
     SESSION_COOKIE_SECURE="true" \
     TALISMAN_FORCE_HTTPS="true" \
