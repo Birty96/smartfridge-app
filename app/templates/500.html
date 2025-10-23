@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Server Error{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-sm text-center">
+             <div class="card-body p-4 p-md-5">
+                <h1 class="display-1 text-danger"><i class="bi bi-lightning-charge"></i></h1>
+                <h2 class="card-title mb-3">500 - Internal Server Error</h2>
+                <p class="card-text lead mb-4">
+                    Sorry, something went wrong on our end. We have been notified and are looking into it.
+                </p>
+                 <p class="card-text mb-4">
+                    Please try again later or return home.
+                </p>
+                <a href="{{ url_for('index') }}" class="btn btn-primary"><i class="bi bi-house-door"></i> Go Back Home</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block content %}
+{# Page Header Row #}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Saved Recipes</h1>
+    {# Optionally add a button or link here if needed #}
+</div>
+
+{% if recipes %}
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+    {% for recipe in recipes %}
+    <div class="col">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body d-flex flex-column">
+                <h5 class="card-title">
+                     <a href="{{ url_for('fridge.view_recipe', recipe_id=recipe.id) }}" class="text-decoration-none">{{ recipe.title }}</a>
+                 </h5>
+                <p class="card-text text-muted flex-grow-1">Source: {{ recipe.source }}</p>
+                <small class="text-muted">Saved: {{ recipe.created_at.strftime('%Y-%m-%d') if recipe.created_at else 'N/A' }}</small>
+            </div>
+            <div class="card-footer bg-transparent border-top-0">
+                 <a href="{{ url_for('fridge.view_recipe', recipe_id=recipe.id) }}" class="btn btn-sm btn-outline-primary me-1"><i class="bi bi-eye"></i> View Details</a>
+                 {# Form to delete saved recipe - Use d-inline-block class #}
+                 <form action="{{ url_for('fridge.delete_saved_recipe', recipe_id=recipe.id) }}" method="POST" class="d-inline-block" onsubmit="return confirm('Are you sure you want to remove this saved recipe?');">
+                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                     <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Remove</button>
+                 </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info" role="alert">
+    You haven't saved any recipes yet. Try generating some suggestions from your <a href="{{ url_for('fridge.index') }}" class="alert-link">fridge</a>!
+    <br>
+    <a href="{{ url_for('index') }}" class="btn btn-link p-0 mt-2"><i class="bi bi-house-door"></i> Back to Home</a>
+</div>
+{% endif %}
+
+{% endblock %}

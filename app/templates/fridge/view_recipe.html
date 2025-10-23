@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block content %}
+{# Page Header Row - Simplified for recipe view #}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ recipe.title }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+         <a href="{{ request.referrer or url_for('fridge.saved_recipes') }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left-circle"></i> Back
+        </a>
+    </div>
+</div>
+
+{# Use shadow-sm for card #}
+<div class="card shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Recipe Details</h5>
+        <small class="text-muted">Source: {{ recipe.source }}</small>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-5 mb-3 mb-md-0">
+                <h6 class="card-subtitle mb-2 text-muted"><i class="bi bi-basket"></i> Ingredients</h6>
+                {# Display ingredients_text, splitting by newline #}
+                <ul class="list-unstyled">
+                    {% for item in recipe.ingredients_text.split('\n') %}
+                        {% if item.strip() %}
+                            <li><i class="bi bi-dot"></i> {{ item.strip() }}</li>
+                        {% endif %}
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="col-md-7 border-start">
+                 <h6 class="card-subtitle mb-2 text-muted"><i class="bi bi-list-ol"></i> Instructions</h6>
+                {# Display instructions, splitting by newline and adding <br> #}
+                {# Using <p> tags might be better for formatting depending on AI output #}
+                <ol>
+                     {% for step in recipe.instructions.split('\n') %}
+                        {% if step.strip() %}
+                             <li>{{ step.strip() }}</li>
+                        {% endif %}
+                    {% endfor %}
+                </ol>
+                {# Alternatively, preformat the text block:
+                <pre>{{ recipe.instructions }}</pre> 
+                #}
+            </div>
+        </div>
+    </div>
+    <div class="card-footer text-muted d-flex justify-content-between align-items-center flex-wrap">
+        <div>
+            <form action="{{ url_for('fridge.use_recipe', recipe_id=recipe.id) }}" method="POST" class="d-inline-block me-2">
+                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                 {# Added icon #}
+                 <button type="submit" class="btn btn-sm btn-success" title="Complete Recipe & Deduct Ingredients (requires matching units)">
+                    <i class="bi bi-check-circle"></i> Complete Recipe
+                </button>
+                 <small class="text-warning ms-1">(Note: Deduction requires matching units)</small>
+             </form>
+            
+            {% if is_saved %}
+                <form action="{{ url_for('fridge.delete_saved_recipe', recipe_id=recipe.id) }}" method="POST" class="d-inline-block" onsubmit="return confirm('Are you sure you want to remove this saved recipe?');">
+                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                     {# Added icon #}
+                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove from Saved"><i class="bi bi-trash"></i> Remove</button>
+                 </form>
+            {% else %}
+                 {# Form to save this recipe (if viewed directly without saving first) #}
+                 <form action="{{ url_for('fridge.save_recipe') }}" method="POST" class="d-inline-block">
+                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                     <input type="hidden" name="title" value="{{ recipe.title }}">
+                     <input type="hidden" name="ingredients" value="{{ recipe.ingredients_text }}">
+                     <input type="hidden" name="instructions" value="{{ recipe.instructions }}">
+                     <input type="hidden" name="source" value="{{ recipe.source }}">
+                      {# Added icon #}
+                     <button type="submit" class="btn btn-sm btn-outline-success" title="Save Recipe"><i class="bi bi-heart"></i> Save</button>
+                 </form>
+            {% endif %}
+        </div>
+        {# Removed back button from here, moved to header #}
+    </div>
+</div>
+
+
+{% endblock %} 

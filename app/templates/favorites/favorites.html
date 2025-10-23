@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from "_formhelpers.html" import render_field %}
+
+{% block content %}
+{# Page Header Row #}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Favorite Sites</h1>
+</div>
+
+<div class="row">
+    {# Add Favorite Site Form #}
+    <div class="col-lg-4 col-md-5 mb-4">
+        {# Added shadow-sm #}
+        <div class="card shadow-sm">
+             <div class="card-header">
+                Add New Favorite
+            </div>
+            <div class="card-body">
+                 <form method="POST" action="{{ url_for('favorites.index') }}" novalidate>
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                         {{ render_field(form.name, class='form-control') }}
+                    </div>
+                    <div class="mb-3">
+                         {{ render_field(form.url, class='form-control', type='url') }}
+                    </div>
+                    <div class="d-grid">
+                        {{ form.submit(class='btn btn-primary') }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {# List of Favorite Sites #}
+    <div class="col-lg-8 col-md-7">
+         {% if sites %}
+            {# Sticking with list group, but could switch to cards #}
+            <div class="list-group shadow-sm">
+                {% for site in sites %}
+                 <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div class="flex-grow-1 me-3">
+                             {# Added icon and improved link styling #}
+                             <a href="{{ site.url }}" target="_blank" rel="noopener noreferrer" class="fw-bold text-decoration-none">
+                                <i class="bi bi-link-45deg"></i> {{ site.name }}
+                            </a>
+                             <br>
+                             <small class="text-muted text-break">{{ site.url }}</small> {# Use text-break #}
+                        </div>
+                        {# Delete Form - Updated button styling #}
+                        <form action="{{ url_for('favorites.delete_site', site_id=site.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete {{ site.name }}?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button> {# Icon only button #}
+                        </form>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-info" role="alert">
+                You haven't added any favorite sites yet.
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %} 
