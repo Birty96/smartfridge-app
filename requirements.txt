@@ -18,4 +18,5 @@ gunicorn==21.2.0 # For production server
 Pillow==10.2.0 # For image handling in team documents
 python-magic==0.4.27 # For file type detection
 alembic==1.13.1 # For database migrations
-pyodbc==5.0.1 # For Azure SQL Database connection
+pyodbc==5.0.1 # For Azure SQL Database connection - primary driver
+pymssql==2.2.11 # Alternative SQL Server driver for Linux - fallback

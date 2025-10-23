@@ -129,4 +129,25 @@ dmypy.json
 cython_debug/
 
 # Flask session files
-flask_session/ 
+flask_session/
+
+# Local database files
+*.db
+app.db
+
+# Deployment artifacts
+*.zip
+*.tar.gz
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Azure specific
+.azure/
