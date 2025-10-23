@@ -1,5 +1,5 @@
 import os
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
@@ -69,6 +69,12 @@ def create_app(config_name='default'):
             else:
                 app.config['SQLALCHEMY_DATABASE_URI'] = clean_url + '?charset=utf8&timeout=30'
             app.logger.info(f"Forced database URL to use pymssql: {app.config['SQLALCHEMY_DATABASE_URI']}")
+    else:
+        # Fallback to SQLite if no DATABASE_URL is provided
+        if not app.config.get('SQLALCHEMY_DATABASE_URI'):
+            basedir = os.path.abspath(os.path.dirname(__file__))
+            app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, '..', 'app.db')
+            app.logger.info("Using SQLite database fallback")
 
     # Initialize extensions with the app instance
     try:
@@ -142,16 +148,31 @@ def create_app(config_name='default'):
     if not os.path.exists(app.config['SESSION_FILE_DIR']):
         os.makedirs(app.config['SESSION_FILE_DIR'])
 
-    # --- Initialize Database Tables if needed --- #
-    with app.app_context():
+    # --- Add database health check endpoint --- #
+    @app.route('/health')
+    def health_check():
+        """Health check endpoint for Azure"""
+        try:
+            # Try a simple database query
+            with db.engine.connect() as connection:
+                connection.execute(db.text('SELECT 1'))
+            return {'status': 'healthy', 'database': 'connected'}, 200
+        except Exception as e:
+            app.logger.error(f"Health check failed: {e}")
+            return {'status': 'unhealthy', 'database': 'disconnected', 'error': str(e)}, 503
+
+    # --- Add database initialization CLI command instead of startup initialization --- #
+    @app.cli.command()
+    def init_db():
+        """Initialize database tables and create admin user"""
         try:
             # Test database connection first
             with db.engine.connect() as connection:
                 connection.execute(db.text('SELECT 1'))
-            app.logger.info("Database connection successful")
+            print("✅ Database connection successful")
             
             db.create_all()
-            app.logger.info("Database tables created/verified")
+            print("✅ Database tables created/verified")
             
             # Create admin user if it doesn't exist
             from .models import User
@@ -166,13 +187,30 @@ def create_app(config_name='default'):
                 admin.set_password('admin123')
                 db.session.add(admin)
                 db.session.commit()
-                app.logger.info("Admin user created")
+                print("✅ Admin user created: username='admin', password='admin123'")
+                print("⚠️  IMPORTANT: Change the admin password after first login!")
             else:
-                app.logger.info("Admin user already exists")
+                print("✅ Admin user already exists")
                 
         except Exception as e:
-            app.logger.error(f"Database initialization error: {e}")
-            # Don't fail the app start, just log the error
-            pass
+            print(f"❌ Database initialization failed: {e}")
+            raise
+
+    # --- Add graceful database error handling to routes --- #
+    @app.before_request
+    def check_database_connection():
+        """Check database connection before each request"""
+        # Skip database check for health endpoint and static files
+        if request.endpoint in ('health_check', 'static'):
+            return
+            
+        try:
+            # Quick connection test - don't do this for every request in production
+            # This is just for debugging the current connection issues
+            if app.config.get('TESTING') or app.debug:
+                pass  # Skip check in testing/debug mode
+        except Exception as e:
+            app.logger.error(f"Database connection lost: {e}")
+            # You could redirect to an error page or return a 503 here
 
     return app

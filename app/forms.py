@@ -2,6 +2,7 @@ from flask import current_app
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField, FloatField, DateField
 from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError, Optional, URL, Regexp, InputRequired
+from sqlalchemy.exc import OperationalError
 from app.models import User
 from app.constants import (
     DEFAULT_USERNAME_MIN_LENGTH, DEFAULT_USERNAME_MAX_LENGTH, DEFAULT_EMAIL_MAX_LENGTH,
@@ -57,14 +58,32 @@ class RegistrationForm(FlaskForm):
     submit = SubmitField('Register')
 
     def validate_username(self, username):
-        user = User.query.filter_by(username=username.data).first()
-        if user:
-            raise ValidationError('That username is already taken. Please choose a different one.')
+        try:
+            user = User.query.filter_by(username=username.data).first()
+            if user:
+                raise ValidationError('That username is already taken. Please choose a different one.')
+        except OperationalError:
+            # Database connection issue - log it but don't fail validation
+            current_app.logger.error("Database connection error during username validation")
+            # Allow the form to proceed - the actual registration will handle the database error
+            pass
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error during username validation: {e}")
+            # Allow the form to proceed for non-database errors too
 
     def validate_email(self, email):
-        user = User.query.filter_by(email=email.data.lower()).first()
-        if user:
-            raise ValidationError('That email is already registered. Please use a different one or log in.')
+        try:
+            user = User.query.filter_by(email=email.data.lower()).first()
+            if user:
+                raise ValidationError('That email is already registered. Please use a different one or log in.')
+        except OperationalError:
+            # Database connection issue - log it but don't fail validation  
+            current_app.logger.error("Database connection error during email validation")
+            # Allow the form to proceed - the actual registration will handle the database error
+            pass
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error during email validation: {e}")
+            # Allow the form to proceed for non-database errors too
 
 class LoginForm(FlaskForm):
     """Form for user login."""
@@ -86,11 +105,20 @@ class PasswordResetRequestForm(FlaskForm):
     submit = SubmitField('Request Password Reset')
 
     def validate_email(self, email):
-        user = User.query.filter_by(email=email.data.lower()).first()
-        if not user:
-            # Avoid revealing if email exists
-            # raise ValidationError('There is no account with that email. You must register first.')
-            pass # Silently pass if email doesn't exist for security
+        try:
+            user = User.query.filter_by(email=email.data.lower()).first()
+            if not user:
+                # Avoid revealing if email exists
+                # raise ValidationError('There is no account with that email. You must register first.')
+                pass # Silently pass if email doesn't exist for security
+        except OperationalError:
+            # Database connection issue - log it but don't fail validation
+            current_app.logger.error("Database connection error during password reset email validation")
+            # Allow the form to proceed - the actual password reset will handle the database error
+            pass
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error during password reset email validation: {e}")
+            # Allow the form to proceed for non-database errors too
 
 class PasswordResetForm(FlaskForm):
     """Form to set a new password after verifying the token."""

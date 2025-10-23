@@ -2,6 +2,7 @@ from flask import render_template, redirect, url_for, flash, request, current_ap
 from flask_login import login_user, logout_user, login_required, current_user
 from urllib.parse import urlparse
 from datetime import datetime
+from sqlalchemy.exc import OperationalError
 
 from app import db
 from app.models import User
@@ -35,12 +36,16 @@ def register():
         except ValueError as e:
              # Catch password validation errors from the model setter
             flash(str(e), 'danger')
+        except OperationalError as e:
+            db.session.rollback()
+            current_app.logger.error(f"Database connection error during registration: {e}")
+            flash('Database connection error. Please try again later.', 'danger')
         except Exception as e:
             db.session.rollback() # Rollback in case of other errors
             flash('An unexpected error occurred during registration. Please try again.', 'danger')
             current_app.logger.error(f"Registration error: {e}")
             
-    return render_template('register.html', title='Register', form=form)
+    return render_template('auth/register.html', title='Register', form=form)
 
 @auth.route('/login', methods=['GET', 'POST'])
 def login():
@@ -50,33 +55,43 @@ def login():
         
     form = LoginForm()
     if form.validate_on_submit():
-        user = User.query.filter_by(email=form.email.data.lower()).first()
-        
-        if user is None:
-            flash('Invalid email or password.', 'warning') # Generic message
-            return redirect(url_for('auth.login'))
+        try:
+            user = User.query.filter_by(email=form.email.data.lower()).first()
+            
+            if user is None:
+                flash('Invalid email or password.', 'warning') # Generic message
+                return redirect(url_for('auth.login'))
 
-        if user.is_locked():
-            flash(f'Account locked due to too many failed login attempts. Please try again later or reset your password.', 'danger')
-            return redirect(url_for('auth.login'))
+            if user.is_locked():
+                flash(f'Account locked due to too many failed login attempts. Please try again later or reset your password.', 'danger')
+                return redirect(url_for('auth.login'))
 
-        if not user.verify_password(form.password.data):
-            user.increment_login_attempts()
+            if not user.verify_password(form.password.data):
+                user.increment_login_attempts()
+                db.session.commit()
+                flash('Invalid email or password.', 'warning') # Generic message
+                return redirect(url_for('auth.login'))
+
+            # --- NEW: Check if user is approved --- #
+            if not user.is_approved:
+                 flash('Your account has not been approved by an administrator yet.', 'warning')
+                 return redirect(url_for('auth.login'))
+            # --- END NEW --- #
+
+            # Password is correct, reset attempts and log in
+            user.reset_login_attempts()
             db.session.commit()
-            flash('Invalid email or password.', 'warning') # Generic message
-            return redirect(url_for('auth.login'))
-
-        # --- NEW: Check if user is approved --- #
-        if not user.is_approved:
-             flash('Your account has not been approved by an administrator yet.', 'warning')
-             return redirect(url_for('auth.login'))
-        # --- END NEW --- #
-
-        # Password is correct, reset attempts and log in
-        user.reset_login_attempts()
-        db.session.commit()
-        login_user(user, remember=form.remember_me.data)
-        flash('Login successful!', 'success')
+            login_user(user, remember=form.remember_me.data)
+            flash('Login successful!', 'success')
+            
+        except OperationalError as e:
+            current_app.logger.error(f"Database connection error during login: {e}")
+            flash('Database connection error. Please try again later.', 'danger')
+            return render_template('auth/login.html', title='Sign In', form=form)
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error during login: {e}")
+            flash('An unexpected error occurred. Please try again.', 'danger')
+            return render_template('auth/login.html', title='Sign In', form=form)
         
         # Redirect to the page the user was trying to access, or the index page
         next_page = request.args.get('next')
