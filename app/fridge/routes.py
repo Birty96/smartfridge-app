@@ -1,6 +1,6 @@
 from flask import render_template, redirect, url_for, flash, request, jsonify, current_app, abort
 from flask_login import login_required, current_user
-from datetime import date
+from datetime import date, timedelta
 import re # <-- Add import for regex
 from decimal import Decimal, InvalidOperation # <-- Add imports for quantity handling
 from flask_wtf.csrf import generate_csrf # Add CSRF token generation
@@ -45,7 +45,7 @@ def index():
     
     today = date.today()
     return render_template('fridge.html', title='My Fridge', form=form, 
-                           ingredients=ingredients, today=today,
+                           ingredients=ingredients, today=today, timedelta=timedelta,
                            UpdateQtyForm=UpdateIngredientQuantityForm)
 
 @fridge.route('/delete/<int:ingredient_id>', methods=['POST'])
