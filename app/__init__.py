@@ -57,6 +57,19 @@ def create_app(config_name='default'):
     app.config.from_object(config[config_name])
     config[config_name].init_app(app) # Perform any config-specific initializations
 
+    # FORCE pymssql driver for Azure deployment - override any existing database URL
+    if app.config.get('DATABASE_URL'):
+        original_url = app.config['DATABASE_URL']
+        if original_url.startswith('mssql://') or original_url.startswith('mssql+pyodbc://'):
+            # Force conversion to pymssql
+            clean_url = original_url.replace('mssql+pyodbc://', 'mssql://').replace('mssql://', 'mssql+pymssql://')
+            if '?' in clean_url:
+                base_url = clean_url.split('?')[0]
+                app.config['SQLALCHEMY_DATABASE_URI'] = base_url + '?charset=utf8&timeout=30'
+            else:
+                app.config['SQLALCHEMY_DATABASE_URI'] = clean_url + '?charset=utf8&timeout=30'
+            app.logger.info(f"Forced database URL to use pymssql: {app.config['SQLALCHEMY_DATABASE_URI']}")
+
     # Initialize extensions with the app instance
     try:
         db.init_app(app)
