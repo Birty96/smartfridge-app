@@ -21,13 +21,16 @@ class Config:
     DATABASE_URL = os.environ.get('DATABASE_URL')
     if DATABASE_URL:
         # Azure SQL Database or other external database
-        if DATABASE_URL.startswith('mssql://'):
-            # For Azure App Service, use pymssql which works better on Linux
-            SQLALCHEMY_DATABASE_URI = DATABASE_URL.replace('mssql://', 'mssql+pymssql://')
-            if '?' not in SQLALCHEMY_DATABASE_URI:
-                SQLALCHEMY_DATABASE_URI += '?charset=utf8&timeout=30'
+        if DATABASE_URL.startswith('mssql://') or DATABASE_URL.startswith('mssql+pyodbc://'):
+            # For Azure App Service, always use pymssql which works better on Linux
+            # Clean up the URL and force pymssql driver
+            clean_url = DATABASE_URL.replace('mssql+pyodbc://', 'mssql://').replace('mssql://', 'mssql+pymssql://')
+            # Remove any pyodbc-specific parameters and add pymssql ones
+            if '?' in clean_url:
+                base_url = clean_url.split('?')[0]
+                SQLALCHEMY_DATABASE_URI = base_url + '?charset=utf8&timeout=30'
             else:
-                SQLALCHEMY_DATABASE_URI += '&charset=utf8&timeout=30'
+                SQLALCHEMY_DATABASE_URI = clean_url + '?charset=utf8&timeout=30'
         else:
             SQLALCHEMY_DATABASE_URI = DATABASE_URL
     else:
@@ -113,6 +116,22 @@ class ProductionConfig(Config):
     TALISMAN_FORCE_HTTPS = True
     TALISMAN_STRICT_TRANSPORT_SECURITY = True
     TALISMAN_SESSION_COOKIE_SECURE = True
+    
+    # Explicitly override database config for production to ensure pymssql
+    DATABASE_URL = os.environ.get('DATABASE_URL')
+    if DATABASE_URL and (DATABASE_URL.startswith('mssql://') or DATABASE_URL.startswith('mssql+pyodbc://')):
+        # Force pymssql for production Azure deployment
+        clean_url = DATABASE_URL.replace('mssql+pyodbc://', 'mssql://').replace('mssql://', 'mssql+pymssql://')
+        if '?' in clean_url:
+            base_url = clean_url.split('?')[0]
+            SQLALCHEMY_DATABASE_URI = base_url + '?charset=utf8&timeout=30'
+        else:
+            SQLALCHEMY_DATABASE_URI = clean_url + '?charset=utf8&timeout=30'
+    elif DATABASE_URL:
+        SQLALCHEMY_DATABASE_URI = DATABASE_URL
+    else:
+        # Fallback to SQLite
+        SQLALCHEMY_DATABASE_URI = 'sqlite:///app.db'
 
     @classmethod
     def init_app(cls, app):
