@@ -143,16 +143,13 @@ def create_app(config_name='default'):
         os.makedirs(app.config['SESSION_FILE_DIR'])
 
     # --- Initialize Database Tables if needed --- #
-    @app.before_first_request
-    def create_tables():
-        """Create database tables on first request if they don't exist."""
+    with app.app_context():
         try:
             # Test database connection first
-            with app.app_context():
-                with db.engine.connect() as connection:
-                    connection.execute(db.text('SELECT 1'))
-                app.logger.info("Database connection successful")
-                
+            with db.engine.connect() as connection:
+                connection.execute(db.text('SELECT 1'))
+            app.logger.info("Database connection successful")
+            
             db.create_all()
             app.logger.info("Database tables created/verified")
             
