@@ -22,40 +22,12 @@ class Config:
     if DATABASE_URL:
         # Azure SQL Database or other external database
         if DATABASE_URL.startswith('mssql://'):
-            # Convert Azure SQL connection string format
-            # First try to detect which driver is available
-            available_driver = None
-            
-            # Check for ODBC Driver 18 (newest)
-            try:
-                import pyodbc
-                drivers = [d for d in pyodbc.drivers() if 'ODBC Driver' in d]
-                if any('18' in d for d in drivers):
-                    available_driver = 'ODBC Driver 18 for SQL Server'
-                elif any('17' in d for d in drivers):
-                    available_driver = 'ODBC Driver 17 for SQL Server'
-                elif drivers:
-                    available_driver = drivers[0]  # Use first available
-            except (ImportError, Exception):
-                pass
-            
-            if available_driver:
-                # Use pyodbc with detected driver
-                SQLALCHEMY_DATABASE_URI = DATABASE_URL.replace('mssql://', 'mssql+pyodbc://')
-                driver_param = f'driver={available_driver}'
-                connection_params = 'Encrypt=yes&TrustServerCertificate=no&Connection+Timeout=30'
-                
-                if '?' not in SQLALCHEMY_DATABASE_URI:
-                    SQLALCHEMY_DATABASE_URI += f'?{driver_param}&{connection_params}'
-                else:
-                    SQLALCHEMY_DATABASE_URI += f'&{driver_param}&{connection_params}'
+            # For Azure App Service, use pymssql which works better on Linux
+            SQLALCHEMY_DATABASE_URI = DATABASE_URL.replace('mssql://', 'mssql+pymssql://')
+            if '?' not in SQLALCHEMY_DATABASE_URI:
+                SQLALCHEMY_DATABASE_URI += '?charset=utf8&timeout=30'
             else:
-                # Fall back to pymssql for Linux environments
-                SQLALCHEMY_DATABASE_URI = DATABASE_URL.replace('mssql://', 'mssql+pymssql://')
-                if '?' not in SQLALCHEMY_DATABASE_URI:
-                    SQLALCHEMY_DATABASE_URI += '?charset=utf8&timeout=30'
-                else:
-                    SQLALCHEMY_DATABASE_URI += '&charset=utf8&timeout=30'
+                SQLALCHEMY_DATABASE_URI += '&charset=utf8&timeout=30'
         else:
             SQLALCHEMY_DATABASE_URI = DATABASE_URL
     else:
@@ -141,25 +113,10 @@ class ProductionConfig(Config):
     TALISMAN_FORCE_HTTPS = True
     TALISMAN_STRICT_TRANSPORT_SECURITY = True
     TALISMAN_SESSION_COOKIE_SECURE = True
-    
-    # Use secure session storage for Azure App Service
-    SESSION_TYPE = 'filesystem'
-    SESSION_FILE_DIR = '/tmp/flask_session'  # Use /tmp for Azure App Service
 
     @classmethod
     def init_app(cls, app):
         Config.init_app(app)
-        
-        # Ensure session directory exists
-        import os
-        session_dir = app.config.get('SESSION_FILE_DIR')
-        if session_dir and not os.path.exists(session_dir):
-            try:
-                os.makedirs(session_dir, mode=0o755)
-            except OSError:
-                # Fallback to in-memory sessions if filesystem is not writable
-                app.config['SESSION_TYPE'] = 'null'
-        
         # Log errors to stderr or configure more sophisticated logging
         import logging
         from logging import StreamHandler
