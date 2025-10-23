@@ -66,16 +66,16 @@ python3 generate_secret_key.py
 
 # Set application settings (environment variables)
 az webapp config appsettings set --resource-group SmartFridge-RG --name your-smartfridge-app --settings \
-    SECRET_KEY="fe74eca42349621a21c6a693e5eb37293b129591844d5d5b576903d27e9a97ae" \
+    SECRET_KEY="your-generated-secret-key-here" \
     FLASK_CONFIG="production" \
     SESSION_COOKIE_SECURE="true" \
     TALISMAN_FORCE_HTTPS="true" \
-    OPENROUTER_API_KEY="your-api-key" \
+    OPENROUTER_API_KEY="your-openrouter-api-key-here" \
     MAIL_SERVER="smtp.googlemail.com" \
     MAIL_PORT="587" \
     MAIL_USE_TLS="true" \
-    MAIL_USERNAME="joshuabirtwistle@hotmail.com" \
-    MAIL_PASSWORD="Icehockey2025!"
+    MAIL_USERNAME="your-email@example.com" \
+    MAIL_PASSWORD="your-app-password-here"
 ```
 
 **3. Deploy Your Code:**
@@ -186,9 +186,9 @@ OPENROUTER_API_KEY=your-openrouter-key-here
 MAIL_SERVER=smtp.googlemail.com
 MAIL_PORT=587
 MAIL_USE_TLS=true
-MAIL_USERNAME=your-email@gmail.com
-MAIL_PASSWORD=your-app-password
-MAIL_DEFAULT_SENDER=your-email@gmail.com
+MAIL_USERNAME=your-email@example.com
+MAIL_PASSWORD=your-gmail-app-password
+MAIL_DEFAULT_SENDER=your-email@example.com
 ```
 
 #### 3. Automated Deployment

@@ -184,11 +184,16 @@ def create_app(config_name='default'):
                     is_admin=True,
                     is_approved=True
                 )
-                admin.set_password('admin123')
+                # Use a secure random password
+                import secrets
+                import string
+                alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+                temp_password = ''.join(secrets.choice(alphabet) for i in range(16))
+                admin.set_password(temp_password)
                 db.session.add(admin)
                 db.session.commit()
-                print("✅ Admin user created: username='admin', password='admin123'")
-                print("⚠️  IMPORTANT: Change the admin password after first login!")
+                print(f"✅ Admin user created: username='admin', password='{temp_password}'")
+                print("⚠️  IMPORTANT: Save this password and change it after first login!")
             else:
                 print("✅ Admin user already exists")
                 
